@@ -10,8 +10,9 @@ export async function GET({ url }) {
     const page = parseInt(url.searchParams.get('page') || '1');
     const limit = parseInt(url.searchParams.get('limit') || '20');
     const estado = url.searchParams.get('estado');
-    
-    // ✅ CORRECCIÓN: SELECT directo con items en lugar de vista
+    const busqueda = url.searchParams.get('busqueda');
+
+    // ✅ SOLO UNA DECLARACIÓN DE QUERY
     let query = supabaseAdmin
       .from('pedidos')
       .select(`
@@ -29,6 +30,12 @@ export async function GET({ url }) {
       `, { count: 'exact' })
       .order('created_at', { ascending: false });
     
+    // Filtro de búsqueda
+    if (busqueda) {
+      query = query.or(`numero_pedido.ilike.%${busqueda}%,cliente_whatsapp.ilike.%${busqueda}%`);
+    }
+    
+    // Filtro por estado
     if (estado) {
       query = query.eq('estado', estado);
     }
@@ -144,11 +151,16 @@ export async function POST({ request }) {
       cliente_whatsapp: body.cliente_whatsapp,
       cliente_email: body.cliente_email || null,
       cliente_direccion: body.cliente_direccion || null,
-      subtotal,
-      impuesto,
-      total,
+      subtotal: parseFloat(body.subtotal),
+      impuesto: parseFloat(body.impuesto),
+      costo_envio: parseFloat(body.costo_envio || 0),
+      total: parseFloat(body.total),
       estado: 'pendiente',
-      notas: body.notas || null
+      notas: body.notas || null,
+      factura: Boolean(body.factura),
+      envio: Boolean(body.envio),
+      metodo_pago: body.metodo_pago || null,
+      constancia_pago_url: body.constancia_pago_url || null
     };
     
     const { data: pedido, error: errorPedido } = await supabaseAdmin
@@ -167,7 +179,7 @@ export async function POST({ request }) {
       cantidad: parseInt(item.cantidad),
       precio_unitario: parseFloat(item.precio_unitario),
       subtotal: parseFloat(item.precio_unitario) * parseInt(item.cantidad),
-      imagen_url: item.imagen_url || null // ✅ AGREGADO
+      imagen_url: item.imagen_url || null
     }));
     
     const { error: errorItems } = await supabaseAdmin
