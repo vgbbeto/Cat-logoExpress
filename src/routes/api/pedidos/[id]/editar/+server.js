@@ -4,11 +4,51 @@ import { supabaseAdmin } from '$lib/supabaseServer';
 import { esEditable, ESTADOS_PAGO } from '$lib/server/pedidos/estados';
 
 /**
- * PUT - Editar pedido (productos, cliente, totales)
- * Solo permite edición si:
- * - pedido.editable = true
- * - estado = pendiente o confirmado
- * - estado_pago != pagado
+ * GET - Obtener pedido con items para edición
+ */
+export async function GET({ params }) {
+  try {
+    const { id } = params;
+    
+    const { data, error } = await supabaseAdmin
+      .from('pedidos')
+      .select(`
+        *,
+        items:pedidos_items(*)
+      `)
+      .eq('id', id)
+      .single();
+    
+    if (error || !data) {
+      return json(
+        { success: false, error: 'Pedido no encontrado' },
+        { status: 404 }
+      );
+    }
+    
+    // Validar si es editable
+    const editable = esEditable(data);
+    
+    return json({
+      success: true,
+      data: {
+        ...data,
+        editable
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error obteniendo pedido:', error);
+    return json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PUT - Editar pedido completo
+ * Permite editar: productos, cliente, totales, notas
  */
 export async function PUT({ params, request }) {
   try {
@@ -49,7 +89,7 @@ export async function PUT({ params, request }) {
     if (body.cliente_email !== undefined) updateData.cliente_email = body.cliente_email?.trim() || null;
     if (body.cliente_direccion !== undefined) updateData.cliente_direccion = body.cliente_direccion?.trim() || null;
     
-    // Costos (solo si está confirmado)
+    // Costos
     if (body.costo_envio !== undefined) {
       updateData.costo_envio = parseFloat(body.costo_envio || 0);
     }
@@ -70,6 +110,18 @@ export async function PUT({ params, request }) {
     
     // 4. Actualizar items si se enviaron
     if (body.items && Array.isArray(body.items) && body.items.length > 0) {
+      // Validar que todos los items tengan producto_id
+      const itemsInvalidos = body.items.filter(item => !item.producto_id);
+      if (itemsInvalidos.length > 0) {
+        return json(
+          { 
+            success: false, 
+            error: 'Todos los productos deben tener un producto_id válido. No se permiten productos NULL.' 
+          },
+          { status: 400 }
+        );
+      }
+      
       // Eliminar items actuales
       await supabaseAdmin
         .from('pedidos_items')
@@ -79,7 +131,7 @@ export async function PUT({ params, request }) {
       // Insertar nuevos items
       const itemsData = body.items.map(item => ({
         pedido_id: id,
-        producto_id: item.producto_id || null,
+        producto_id: item.producto_id, // ✅ Siempre requerido
         producto_nombre: item.nombre || item.producto_nombre,
         producto_sku: item.sku || item.producto_sku || null,
         cantidad: parseInt(item.cantidad),
@@ -99,22 +151,30 @@ export async function PUT({ params, request }) {
       updateData.subtotal = nuevoSubtotal;
       
       // Recalcular IVA si tiene factura
-      if (pedidoActual.factura) {
+      if (body.factura || pedidoActual.factura) {
         updateData.impuesto = nuevoSubtotal * 0.16; // 16% IVA México
+      } else {
+        updateData.impuesto = 0;
       }
       
       // Recalcular total
       const nuevoTotal = nuevoSubtotal + 
-                        (updateData.impuesto || pedidoActual.impuesto || 0) + 
+                        (updateData.impuesto || 0) + 
                         (updateData.costo_envio !== undefined ? updateData.costo_envio : pedidoActual.costo_envio || 0);
       
       updateData.total = nuevoTotal;
-    } else if (body.costo_envio !== undefined) {
-      // Solo actualizar total si cambió el costo de envío
-      const nuevoTotal = pedidoActual.subtotal + 
-                        (pedidoActual.impuesto || 0) + 
-                        parseFloat(body.costo_envio || 0);
-      updateData.total = nuevoTotal;
+    } else if (body.costo_envio !== undefined || body.factura !== undefined) {
+      // Solo recalcular total si cambió el costo de envío o factura
+      const subtotal = pedidoActual.subtotal;
+      const impuesto = (body.factura !== undefined ? body.factura : pedidoActual.factura) 
+        ? subtotal * 0.16 
+        : 0;
+      const costoEnvio = body.costo_envio !== undefined 
+        ? parseFloat(body.costo_envio) 
+        : pedidoActual.costo_envio || 0;
+      
+      updateData.impuesto = impuesto;
+      updateData.total = subtotal + impuesto + costoEnvio;
     }
     
     // 5. Actualizar pedido
@@ -136,6 +196,7 @@ export async function PUT({ params, request }) {
     if (body.cliente_nombre) cambios.push('cliente');
     if (body.costo_envio !== undefined) cambios.push('costo de envío');
     if (body.notas !== undefined) cambios.push('notas');
+    if (body.factura !== undefined) cambios.push('factura');
     
     await supabaseAdmin
       .from('pedidos_historial')
@@ -160,50 +221,6 @@ export async function PUT({ params, request }) {
     
   } catch (error) {
     console.error('Error editando pedido:', error);
-    return json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
-  }
-}
-
-
-/**
- * GET - Obtener pedido con items para edición
- */
-export async function GET({ params }) {
-  try {
-    const { id } = params;
-    
-    const { data, error } = await supabaseAdmin
-      .from('pedidos')
-      .select(`
-        *,
-        items:pedidos_items(*)
-      `)
-      .eq('id', id)
-      .single();
-    
-    if (error || !data) {
-      return json(
-        { success: false, error: 'Pedido no encontrado' },
-        { status: 404 }
-      );
-    }
-    
-    // Validar si es editable
-    const editable = esEditable(data);
-    
-    return json({
-      success: true,
-      data: {
-        ...data,
-        editable
-      }
-    });
-    
-  } catch (error) {
-    console.error('Error obteniendo pedido:', error);
     return json(
       { success: false, error: error.message },
       { status: 500 }
