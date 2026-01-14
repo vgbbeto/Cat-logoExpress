@@ -1,9 +1,13 @@
+
 // ========================================
 // src/routes/api/pedidos/[id]/marcar-recibido/+server.js
+// ACTUALIZADO: Incluye calificación y comentario
 // ========================================
-export async function POST({ params }) {
+export async function POST({ params, request }) {
   try {
     const { id } = params;
+    const body = await request.json();
+    const { calificacion = 0, comentario = null } = body;
     
     const { data: pedido } = await supabaseAdmin
       .from('pedidos')
@@ -30,6 +34,7 @@ export async function POST({ params }) {
     
     if (error) throw error;
     
+    // Registrar en historial con calificación
     await supabaseAdmin
       .from('pedidos_historial')
       .insert({
@@ -37,7 +42,11 @@ export async function POST({ params }) {
         estado_anterior: ESTADOS.ENVIADO,
         estado_nuevo: ESTADOS.RECIBIDO,
         tipo_usuario: 'cliente',
-        notas: 'Cliente confirmó recepción del pedido'
+        notas: comentario || 'Cliente confirmó recepción del pedido',
+        metadata: {
+          calificacion,
+          comentario
+        }
       });
     
     return json({

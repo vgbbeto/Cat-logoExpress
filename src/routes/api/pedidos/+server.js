@@ -18,6 +18,7 @@ export async function GET({ url }) {
     const estado = url.searchParams.get('estado');
     const estadoPago = url.searchParams.get('estado_pago');
     const busqueda = url.searchParams.get('busqueda');
+    const whatsapp = url.searchParams.get('whatsapp'); // NUEVO: búsqueda por WhatsApp
     const soloValidacionPendiente = url.searchParams.get('validacion_pendiente') === 'true';
 
     let query = supabaseAdmin
@@ -42,6 +43,11 @@ export async function GET({ url }) {
         )
       `, { count: 'exact' })
       .order('created_at', { ascending: false });
+    
+    // NUEVO: Filtro por WhatsApp del cliente
+    if (whatsapp) {
+      query = query.eq('cliente_whatsapp', whatsapp);
+    }
     
     // Filtro: Solo pedidos esperando validación
     if (soloValidacionPendiente) {
