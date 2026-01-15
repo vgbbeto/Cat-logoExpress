@@ -2,10 +2,16 @@
 import { json } from '@sveltejs/kit';
 import { supabaseAdmin } from '$lib/supabaseServer';
 import { esEditable, ESTADOS_PAGO } from '$lib/server/pedidos/estados';
+import {
+  ValidationError,
+  validarDatosCliente,
+  validarItems,
+  validarTotales,
+  validarEdicion,
+  sanitizarTexto,
+  sanitizarWhatsApp
+} from '$lib/server/pedidos/validaciones';
 
-/**
- * GET - Obtener pedido con items para edición
- */
 export async function GET({ params }) {
   try {
     const { id } = params;
@@ -20,13 +26,9 @@ export async function GET({ params }) {
       .single();
     
     if (error || !data) {
-      return json(
-        { success: false, error: 'Pedido no encontrado' },
-        { status: 404 }
-      );
+      throw new ValidationError('Pedido no encontrado', 'NOT_FOUND');
     }
     
-    // Validar si es editable
     const editable = esEditable(data);
     
     return json({
@@ -38,24 +40,27 @@ export async function GET({ params }) {
     });
     
   } catch (error) {
-    console.error('Error obteniendo pedido:', error);
+    console.error('Error GET editar:', error);
+    
+    if (error instanceof ValidationError) {
+      return json(
+        { success: false, error: error.message, code: error.code },
+        { status: error.code === 'NOT_FOUND' ? 404 : 400 }
+      );
+    }
+    
     return json(
-      { success: false, error: error.message },
+      { success: false, error: 'Error al obtener pedido', code: 'GET_ERROR' },
       { status: 500 }
     );
   }
 }
 
-/**
- * PUT - Editar pedido completo
- * Permite editar: productos, cliente, totales, notas
- */
 export async function PUT({ params, request }) {
   try {
     const { id } = params;
     const body = await request.json();
     
-    // 1. Obtener pedido actual
     const { data: pedidoActual, error: errorPedido } = await supabaseAdmin
       .from('pedidos')
       .select('*')
@@ -63,75 +68,60 @@ export async function PUT({ params, request }) {
       .single();
     
     if (errorPedido || !pedidoActual) {
-      return json(
-        { success: false, error: 'Pedido no encontrado' },
-        { status: 404 }
-      );
+      throw new ValidationError('Pedido no encontrado', 'NOT_FOUND');
     }
     
-    // 2. Validar que sea editable
-    if (!esEditable(pedidoActual)) {
-      return json(
-        { 
-          success: false, 
-          error: 'Este pedido ya no puede ser editado. El pago ya fue validado o el pedido está en proceso de envío.' 
-        },
-        { status: 403 }
-      );
-    }
+    validarEdicion(pedidoActual);
     
-    // 3. Preparar datos de actualización
     const updateData = {};
     
-    // Cliente
-    if (body.cliente_nombre) updateData.cliente_nombre = body.cliente_nombre.trim();
-    if (body.cliente_whatsapp) updateData.cliente_whatsapp = body.cliente_whatsapp.trim();
-    if (body.cliente_email !== undefined) updateData.cliente_email = body.cliente_email?.trim() || null;
-    if (body.cliente_direccion !== undefined) updateData.cliente_direccion = body.cliente_direccion?.trim() || null;
+    if (body.cliente_nombre) {
+      updateData.cliente_nombre = body.cliente_nombre.trim();
+    }
     
-    // Costos
+    if (body.cliente_whatsapp) {
+      updateData.cliente_whatsapp = sanitizarWhatsApp(body.cliente_whatsapp);
+    }
+    
+    if (body.cliente_email !== undefined) {
+      updateData.cliente_email = body.cliente_email?.trim() || null;
+    }
+    
+    if (body.cliente_direccion !== undefined) {
+      updateData.cliente_direccion = body.cliente_direccion?.trim() || null;
+    }
+    
     if (body.costo_envio !== undefined) {
       updateData.costo_envio = parseFloat(body.costo_envio || 0);
     }
     
-    // Notas internas
     if (body.notas !== undefined) {
-      updateData.notas = body.notas?.trim() || null;
+      updateData.notas = sanitizarTexto(body.notas);
     }
     
-    // Método de pago
     if (body.metodo_pago !== undefined) {
       updateData.metodo_pago = body.metodo_pago;
     }
     
-    // Flags
-    if (body.factura !== undefined) updateData.factura = Boolean(body.factura);
-    if (body.envio !== undefined) updateData.envio = Boolean(body.envio);
+    if (body.factura !== undefined) {
+      updateData.factura = Boolean(body.factura);
+    }
     
-    // 4. Actualizar items si se enviaron
+    if (body.envio !== undefined) {
+      updateData.envio = Boolean(body.envio);
+    }
+    
     if (body.items && Array.isArray(body.items) && body.items.length > 0) {
-      // Validar que todos los items tengan producto_id
-      const itemsInvalidos = body.items.filter(item => !item.producto_id);
-      if (itemsInvalidos.length > 0) {
-        return json(
-          { 
-            success: false, 
-            error: 'Todos los productos deben tener un producto_id válido. No se permiten productos NULL.' 
-          },
-          { status: 400 }
-        );
-      }
+      validarItems(body.items);
       
-      // Eliminar items actuales
       await supabaseAdmin
         .from('pedidos_items')
         .delete()
         .eq('pedido_id', id);
       
-      // Insertar nuevos items
       const itemsData = body.items.map(item => ({
         pedido_id: id,
-        producto_id: item.producto_id, // ✅ Siempre requerido
+        producto_id: item.producto_id,
         producto_nombre: item.nombre || item.producto_nombre,
         producto_sku: item.sku || item.producto_sku || null,
         cantidad: parseInt(item.cantidad),
@@ -144,27 +134,25 @@ export async function PUT({ params, request }) {
         .from('pedidos_items')
         .insert(itemsData);
       
-      if (errorItems) throw errorItems;
+      if (errorItems) {
+        throw new Error('Error al actualizar items del pedido');
+      }
       
-      // Recalcular totales
       const nuevoSubtotal = itemsData.reduce((sum, item) => sum + item.subtotal, 0);
       updateData.subtotal = nuevoSubtotal;
       
-      // Recalcular IVA si tiene factura
-      if (body.factura || pedidoActual.factura) {
-        updateData.impuesto = nuevoSubtotal * 0.16; // 16% IVA México
+      if (body.factura !== undefined ? body.factura : pedidoActual.factura) {
+        updateData.impuesto = nuevoSubtotal * 0.16;
       } else {
         updateData.impuesto = 0;
       }
       
-      // Recalcular total
       const nuevoTotal = nuevoSubtotal + 
                         (updateData.impuesto || 0) + 
                         (updateData.costo_envio !== undefined ? updateData.costo_envio : pedidoActual.costo_envio || 0);
       
       updateData.total = nuevoTotal;
     } else if (body.costo_envio !== undefined || body.factura !== undefined) {
-      // Solo recalcular total si cambió el costo de envío o factura
       const subtotal = pedidoActual.subtotal;
       const impuesto = (body.factura !== undefined ? body.factura : pedidoActual.factura) 
         ? subtotal * 0.16 
@@ -177,7 +165,15 @@ export async function PUT({ params, request }) {
       updateData.total = subtotal + impuesto + costoEnvio;
     }
     
-    // 5. Actualizar pedido
+    if (Object.keys(updateData).length > 0) {
+      validarTotales({
+        subtotal: updateData.subtotal || pedidoActual.subtotal,
+        impuesto: updateData.impuesto !== undefined ? updateData.impuesto : pedidoActual.impuesto,
+        costo_envio: updateData.costo_envio !== undefined ? updateData.costo_envio : pedidoActual.costo_envio,
+        total: updateData.total || pedidoActual.total
+      });
+    }
+    
     const { data: pedidoActualizado, error: errorUpdate } = await supabaseAdmin
       .from('pedidos')
       .update(updateData)
@@ -188,9 +184,10 @@ export async function PUT({ params, request }) {
       `)
       .single();
     
-    if (errorUpdate) throw errorUpdate;
+    if (errorUpdate) {
+      throw new Error('Error al actualizar el pedido');
+    }
     
-    // 6. Registrar en historial
     const cambios = [];
     if (body.items) cambios.push('productos');
     if (body.cliente_nombre) cambios.push('cliente');
@@ -216,13 +213,21 @@ export async function PUT({ params, request }) {
     return json({
       success: true,
       data: pedidoActualizado,
-      message: '✅ Pedido actualizado correctamente'
+      message: 'Pedido actualizado correctamente'
     });
     
   } catch (error) {
-    console.error('Error editando pedido:', error);
+    console.error('Error PUT editar:', error);
+    
+    if (error instanceof ValidationError) {
+      return json(
+        { success: false, error: error.message, code: error.code },
+        { status: error.code === 'NOT_FOUND' ? 404 : 403 }
+      );
+    }
+    
     return json(
-      { success: false, error: error.message },
+      { success: false, error: error.message || 'Error al editar el pedido', code: 'EDIT_ERROR' },
       { status: 500 }
     );
   }

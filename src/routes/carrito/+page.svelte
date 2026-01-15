@@ -160,7 +160,10 @@
   <!-- OPCIÓN 1: HEADER CON BOTÓN DESTACADO (RECOMENDADA) -->
   <!-- ============================================ -->
   <div class="mb-8">
-    
+    <a href="/" class="inline-flex items-center text-primary-600 hover:text-primary-800 mb-4 transition-colors">
+      <ArrowLeft class="w-4 h-4 mr-2" />
+      Volver al catálogo
+    </a>
     
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
@@ -173,6 +176,14 @@
         </p>
       </div>
       
+      <!-- ✨ BOTÓN MIS PEDIDOS - SIEMPRE VISIBLE -->
+      <a 
+        href="/carrito/mis-pedidos"
+        class="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all shadow-lg shadow-primary-200 font-semibold group"
+      >
+        <ClipboardList class="w-5 h-5 group-hover:scale-110 transition-transform" />
+        <span>Seguir Mis Pedidos</span>
+      </a>
     </div>
   </div>
   
