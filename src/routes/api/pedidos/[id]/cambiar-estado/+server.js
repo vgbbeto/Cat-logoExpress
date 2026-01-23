@@ -60,7 +60,7 @@ export async function POST({ params, request }) {
         updateData.fecha_pagado = new Date().toISOString();
         break;
       case ESTADOS.PREPARANDO:
-        updateData.fecha_preparando = new Date().toISOString();
+        updateData.fecha_pagado = new Date().toISOString();
         break;
       case ESTADOS.ENVIADO:
         updateData.fecha_enviado = new Date().toISOString();

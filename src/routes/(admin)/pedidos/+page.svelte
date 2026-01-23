@@ -355,6 +355,7 @@
 {#if modalValidarPago.open}
   <ModalValidarPago
     pedido={modalValidarPago.pedido}
+    on:validated={() => loadPedidos()}
     on:close={() => { 
       modalValidarPago.open = false; 
       loadPedidos(); 
