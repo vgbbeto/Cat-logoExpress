@@ -157,14 +157,26 @@ async function procesarNotificacion(notif) {
     if (!config) {
       throw new Error('Configuración no encontrada');
     }
+    // ✅ PARSEAR CUENTAS BANCARIAS
+    const cuentasPago = config.cuentas_pago 
+      ? (typeof config.cuentas_pago === 'string' 
+          ? JSON.parse(config.cuentas_pago) 
+          : config.cuentas_pago)
+      : [];
     
-    // Generar mensaje
+    // ✅ PASAR CUENTAS EN METADATA
+    const metadataCompleta = {
+      ...notif.metadata,
+      cuentas_pago: cuentasPago
+    };
+    
     const resultado = await enviarMensajeWhatsApp(
       notif.pedido,
       notif.tipo,
       config,
-      notif.metadata
+      metadataCompleta
     );
+    
     
     if (!resultado || !resultado.mensaje) {
       throw new Error('No se pudo generar el mensaje');

@@ -2,9 +2,10 @@
 import { ESTADOS } from '$lib/pedidos/estadosCliente';
 
 export async function enviarMensajeWhatsApp(pedido, tipo, config, metadata = {}) {
-  const telefono = config.whatsapp_negocio || config.whatsapp || '';
+  const telefonoDestino = pedido.cliente_whatsapp;
+  const telefonoEmisor = config.whatsapp_negocio || config.whatsapp || '';
   const nombreNegocio = config.nombre_negocio || 'CatálogoExpress';
-
+  
   const mensajes = {
     pedido_recibido: generarMensajePedidoRecibido,
     pedido_confirmado: generarMensajePedidoConfirmado,
@@ -23,9 +24,9 @@ export async function enviarMensajeWhatsApp(pedido, tipo, config, metadata = {})
   }
 
   const mensaje = generador(pedido, nombreNegocio, metadata);
-  const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+  const url = `https://wa.me/${telefonoEmisor}?text=${encodeURIComponent(mensaje)}`;
 
-  return { mensaje, url };
+  return {  mensaje, url, telefono: telefonoEmisor };
 }
 
 function generarMensajePedidoRecibido(pedido, nombreNegocio) {
@@ -45,19 +46,43 @@ En breve revisaremos tu pedido y te confirmaremos los detalles.
 Gracias por tu compra en ${nombreNegocio} 🙏`;
 }
 
-function generarMensajePedidoConfirmado(pedido, nombreNegocio) {
-  return `✅ *Pedido Confirmado*
+
+function generarMensajePedidoConfirmado(pedido, nombreNegocio, metadata) {
+  let mensaje = `✅ *Pedido Confirmado*
 
 Hola ${pedido.cliente_nombre},
 
 Tu pedido #${pedido.numero_pedido} ha sido confirmado.
 
-💰 *Total a pagar:* $${pedido.total.toFixed(2)}
-${pedido.costo_envio > 0 ? `📦 *Envío:* $${pedido.costo_envio.toFixed(2)}` : ''}
+💰 *Total a pagar:* $${pedido.total.toFixed(2)}`;
 
-Por favor, realiza el pago y envíanos tu comprobante para procesar tu pedido.
+  if (pedido.costo_envio > 0) {
+    mensaje += `\n📦 *Envío:* $${pedido.costo_envio.toFixed(2)}`;
+  }
+
+  // ✅ INCLUIR DATOS BANCARIOS
+  if (metadata.cuentas_pago && Array.isArray(metadata.cuentas_pago)) {
+    mensaje += `\n\n💳 *Datos para ${pedido.metodo_pago === 'deposito' ? 'Depósito' : 'Transferencia'}:*\n`;
+    
+    metadata.cuentas_pago.forEach((cuenta, index) => {
+      if (index > 0) mensaje += '\n';
+      mensaje += `\n*${cuenta.banco}*`;
+      mensaje += `\nTitular: ${cuenta.titular}`;
+      mensaje += `\nCuenta: ${cuenta.numero_cuenta}`;
+      if (cuenta.clabe) {
+        mensaje += `\nCLABE: ${cuenta.clabe}`;
+      }
+    });
+  }
+
+  mensaje += `\n\n📲 *Siguiente paso:*
+1. Realiza el pago
+2. Toma captura del comprobante
+3. Súbelo en: ${nombreNegocio.replace(/\s+/g, '-').toLowerCase()}.com/carrito/mis-pedidos
 
 ${nombreNegocio}`;
+
+  return mensaje;
 }
 
 function generarMensajePagoValidado(pedido, nombreNegocio) {
