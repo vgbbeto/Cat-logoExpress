@@ -1,5 +1,5 @@
 <!-- src/routes/(admin)/pedidos/+page.svelte -->
-<!-- ✅ VERSIÓN CORREGIDA -->
+<!-- ✅ VERSIÓN 2901 -->
 <script>
   import { onMount } from 'svelte';
   import { Bell, Search, Eye, MessageCircle, CheckCircle, XCircle, Edit } from 'lucide-svelte';
@@ -10,6 +10,7 @@
   import ModalDetalles from '$lib/components/pedidos/ModalDetalles.svelte';
   import ModalEditarPedido from '$lib/components/pedidos/ModalEditarPedido.svelte';
   import BadgePendientes from '$lib/components/pedidos/BadgePendientes.svelte';
+  import ModalGuiaEnvio from '$lib/components/pedidos/ModalGuiaEnvio.svelte';
   
   let pedidos = [];
   let loading = true;
@@ -28,6 +29,7 @@
   let modalEnviar = { open: false, pedido: null };
   let modalDetalles = { open: false, pedido: null };
   let modalEditar = { open: false, pedido: null };
+  let modalGuiaEnvio = { open: false, pedido: null };
   
   // ✅ MEJORADO: Estados para UI
   const estados = Object.keys(ESTADOS).map(key => ({
@@ -112,6 +114,10 @@
     modalDetalles = { open: true, pedido };
   }
   
+  function abrirModalGuiaEnvio(pedido) {
+    modalGuiaEnvio = { open: true, pedido };
+  }
+
   function formatCurrency(amount) {
     return new Intl.NumberFormat('es-MX', {
       style: 'currency',
@@ -285,6 +291,20 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
                   {formatCurrency(pedido.total)}
                 </td>
+                <!-- En la tabla de pedidos, agregar botón para PREPARANDO -->
+                <!-- Dentro del <td> de acciones: -->
+
+                {#if pedido.estado === 'preparando'}
+                  <button
+                    on:click={() => abrirModalGuiaEnvio(pedido)}
+                    class="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100"
+                    title="Marcar como enviado"
+                  >
+                    <Truck class="w-5 h-5" />
+                  </button>
+                {/if}
+
+              
                 <td class="px-6 py-4 whitespace-nowrap">
                   <span class="px-3 py-1 text-xs font-semibold rounded-full {colores.bg} {colores.text} border {colores.border}">
                     {CONFIG_ESTADOS[pedido.estado]?.icon} {CONFIG_ESTADOS[pedido.estado]?.label}
@@ -362,6 +382,16 @@
     }}
   />
 {/if}
+
+{#if modalGuiaEnvio.open}
+    <ModalGuiaEnvio
+        pedido={modalGuiaEnvio.pedido}
+        on:close={() => { 
+        modalGuiaEnvio.open = false; 
+        loadPedidos(); 
+      }}
+    />
+  {/if}
 
 {#if modalCancelar.open}
   <ModalCancelar
