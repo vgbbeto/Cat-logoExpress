@@ -3,6 +3,7 @@
   import { createEventDispatcher } from 'svelte';
   import { Loader2, AlertCircle, CheckCircle } from 'lucide-svelte';
   import { ESTADOS, CONFIG_ESTADOS, obtenerColorEstado } from '$lib/pedidos/estadosCliente';
+  import { procesarRespuestaWhatsApp } from '$lib/utils/whatsapp';
   
   export let pedido;
   export let estadosPermitidos = [];
@@ -33,14 +34,13 @@
     error = '';
     
     try {
-      // ✅ CORRECCIÓN: Ruta correcta del endpoint
       const res = await fetch(`/api/pedidos/${pedido.id}/cambiar-estado`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          estado: estadoSeleccionado,
+          estado_nuevo: estadoSeleccionado,
           notas: `Estado cambiado manualmente a ${estadoSeleccionado}`,
-          usuario: 'Admin'
+          tipo_usuario: 'vendedor'
         })
       });
       
@@ -49,13 +49,20 @@
       if (!result.success) {
         throw new Error(result.error || 'Error al cambiar estado');
       }
+      procesarRespuestaWhatsApp(result);
+      // ✅ ABRIR WHATSAPP AUTOMÁTICAMENTE
+      if (result.whatsapp?.url && result.whatsapp?.auto_abrir) {
+        console.log('📱 Abriendo WhatsApp automáticamente...');
+        window.open(result.whatsapp.url, '_blank');
+      }
       
-      // ✅ Emitir evento con datos actualizados
+      // Emitir evento con datos actualizados
       dispatch('cambioEstado', {
         pedidoId: pedido.id,
         estadoAnterior: pedido.estado,
         estadoNuevo: estadoSeleccionado,
-        pedidoActualizado: result.data
+        pedidoActualizado: result.data,
+        whatsappEnviado: Boolean(result.whatsapp?.url)
       });
       
       // Actualizar pedido localmente
@@ -131,6 +138,12 @@
           <p class="text-xs text-amber-700 mt-1">
             El pedido pasará de <strong>{CONFIG_ESTADOS[pedido.estado]?.label}</strong> 
             a <strong>{CONFIG_ESTADOS[estadoSeleccionado]?.label}</strong>
+          </p>
+          <p class="text-xs text-green-700 mt-2 flex items-center gap-1">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/>
+            </svg>
+            Se abrirá WhatsApp automáticamente con el mensaje para el cliente
           </p>
         </div>
       </div>

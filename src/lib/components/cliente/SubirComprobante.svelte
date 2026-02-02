@@ -1,5 +1,5 @@
 <!-- src/lib/components/cliente/SubirComprobante.svelte -->
-<!-- ✅ VERSIÓN CORREGIDA: Usa ImageUploader para Cloudinary -->
+<!-- ✅ Usa ImageUploader para Cloudinary -->
 <script>
   import { createEventDispatcher } from 'svelte';
   import { Upload, CheckCircle, Loader2, AlertCircle } from 'lucide-svelte';

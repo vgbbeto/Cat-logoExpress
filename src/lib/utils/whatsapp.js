@@ -1,3 +1,4 @@
+//lib/utils/whatsapp.js
 /**
  * Genera un enlace de WhatsApp para un pedido completo
  * @param {Object} pedido - Objeto del pedido
@@ -216,4 +217,22 @@ export function validarNumeroWhatsApp(numero) {
   const numeroLimpio = formatearNumeroWhatsApp(numero);
   // Mínimo 10 dígitos, máximo 15
   return /^\d{10,15}$/.test(numeroLimpio);
+}
+/**
+ * Procesa respuesta del servidor y abre WhatsApp automáticamente
+ * @param {Object} result - Respuesta del endpoint con { whatsapp: { url, auto_abrir } }
+ * @returns {boolean} true si se abrió WhatsApp
+ */
+export function procesarRespuestaWhatsApp(result) {
+  if (!result?.success) {
+    return false;
+  }
+  
+  if (result.whatsapp?.url && result.whatsapp?.auto_abrir) {
+    console.log('📱 Abriendo WhatsApp automáticamente...');
+    window.open(result.whatsapp.url, '_blank', 'noopener,noreferrer');
+    return true;
+  }
+  
+  return false;
 }

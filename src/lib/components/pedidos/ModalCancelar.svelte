@@ -2,6 +2,7 @@
 <script>
   import { createEventDispatcher } from 'svelte';
   import { XCircle, Loader2, AlertTriangle } from 'lucide-svelte';
+  import { procesarRespuestaWhatsApp } from '$lib/utils/whatsapp';
   
   export let pedido;
   
@@ -44,9 +45,12 @@
       if (!result.success) {
         throw new Error(result.error);
       }
-      
+      procesarRespuestaWhatsApp(result);
       alert('✅ ' + result.message);
       dispatch('close');
+      if (result.whatsapp?.url && result.whatsapp?.auto_abrir) {
+          window.open(result.whatsapp.url, '_blank');
+}
       
     } catch (err) {
       error = err.message;

@@ -1,5 +1,5 @@
 // src/lib/server/notificaciones/templates.js
-// ✅ AGREGAR TEMPLATES PARA LOS NUEVOS ESTADOS
+// ✅ TEMPLATES PARA LOS ESTADOS
 
 export const TEMPLATES_NOTIFICACIONES = {
   

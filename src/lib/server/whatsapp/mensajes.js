@@ -90,6 +90,7 @@ Tu pedido #${pedido.numero_pedido} ha sido confirmado.
 1. Realiza el pago
 2. Toma captura del comprobante
 3. Súbelo desde tu área de pedidos
+⚠️ No olvides agregar los datos de destino del pedido para procesar el envío.
 
 ${nombreNegocio}`;
 

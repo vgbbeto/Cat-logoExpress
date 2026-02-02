@@ -3,7 +3,7 @@ import { ESTADOS } from '$lib/pedidos/estadosCliente';
 
 export async function enviarMensajeWhatsApp(pedido, tipo, config, metadata = {}) {
   const telefonoDestino = pedido.cliente_whatsapp;
-  const telefonoEmisor = config.whatsapp_negocio || config.whatsapp || '';
+  //const telefonoEmisor = config.whatsapp_negocio || config.whatsapp || '';
   const nombreNegocio = config.nombre_negocio || 'CatálogoExpress';
   
   const mensajes = {
@@ -24,9 +24,9 @@ export async function enviarMensajeWhatsApp(pedido, tipo, config, metadata = {})
   }
 
   const mensaje = generador(pedido, nombreNegocio, metadata);
-  const url = `https://wa.me/${telefonoEmisor}?text=${encodeURIComponent(mensaje)}`;
+  const url = `https://wa.me/${telefonoDestino}?text=${encodeURIComponent(mensaje)}`;
 
-  return {  mensaje, url, telefono: telefonoEmisor };
+  return {  mensaje, url, telefono: telefonoDestino };
 }
 
 function generarMensajePedidoRecibido(pedido, nombreNegocio) {

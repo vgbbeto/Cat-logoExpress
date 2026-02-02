@@ -1,7 +1,7 @@
 <!-- src/lib/components/cliente/FormularioDireccion.svelte -->
 <script>
   import { createEventDispatcher, onMount } from 'svelte';
-  import { MapPin, Loader2, CheckCircle, AlertCircle, Phone, Mail } from 'lucide-svelte';
+  import { MapPin, Loader2, CheckCircle, AlertCircle, Phone, Mail, Edit } from 'lucide-svelte';
   
   export let pedido;
   export let direccionInicial = null;
@@ -11,7 +11,8 @@
   let loading = false;
   let error = '';
   let success = '';
-  let mostrarFormulario = false;
+  let modoEdicion = true; // ✅ Siempre en edición inicialmente
+  let direccionCargada = false;
   
   // Estados de México (catálogo completo)
   const ESTADOS_MX = [
@@ -60,9 +61,10 @@
   
   onMount(async () => {
     // Autollenar si hay dirección previa
-    if (direccionInicial) {
+    if (direccionInicial && direccionInicial.calle) {
       direccion = { ...direccion, ...direccionInicial };
-      console.log('✅ Dirección autocompletada');
+      direccionCargada = true;
+      console.log('✅ Dirección autocompletada desde pedido');
     } else {
       // Buscar última dirección del cliente
       await buscarUltimaDireccion();
@@ -76,7 +78,8 @@
       
       if (result.success && result.data) {
         direccion = { ...direccion, ...result.data };
-        success = '✅ Dirección autocompletada de un pedido anterior. Verifica que sea correcta.';
+        direccionCargada = true;
+        success = '✅ Encontramos tu última dirección. Por favor revisa que los datos sean correctos.';
         setTimeout(() => success = '', 5000);
       }
     } catch (err) {
@@ -143,7 +146,7 @@
       dispatch('guardado', { direccion });
       
       setTimeout(() => {
-        mostrarFormulario = false;
+        modoEdicion = false;
       }, 1500);
       
     } catch (err) {
@@ -165,99 +168,202 @@
     direccion.referencias.trim();
 </script>
 
-<div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl shadow-lg p-6 mb-6 border-2 border-indigo-200">
+<!-- ✅ ALERTA CRÍTICA: Dirección es importante -->
+<div class="bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 border-3 border-orange-400 rounded-2xl shadow-xl p-6 mb-6">
   <div class="flex items-start gap-4 mb-4">
-    <div class="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
-      <MapPin class="w-6 h-6 text-indigo-600" />
+    <div class="w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center flex-shrink-0 animate-pulse">
+      <AlertCircle class="w-8 h-8 text-white" />
     </div>
     <div class="flex-1">
-      <h3 class="text-lg font-bold text-gray-900 mb-1">
-        📍 Dirección de Envío
+      <h3 class="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+        ⚠️ ¡IMPORTANTE! Confirma tu Dirección
       </h3>
+      <p class="text-base text-gray-800 font-medium mb-2">
+        Esta información es CRÍTICA para que tu pedido llegue correctamente.
+      </p>
       <p class="text-sm text-gray-700">
-        {#if direccion.calle}
-          Verifica que tus datos de entrega sean correctos antes de continuar
-        {:else}
-          Completa tu dirección para que podamos enviar tu pedido
-        {/if}
+        Por favor, revisa TODOS los campos cuidadosamente antes de guardar.
       </p>
     </div>
   </div>
+</div>
+
+<div class="bg-white rounded-2xl shadow-lg p-6 mb-6 border-2 border-indigo-200">
   
   {#if success}
-    <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg mb-4">
+    <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg mb-6">
       <div class="flex items-center gap-3">
         <CheckCircle class="w-5 h-5 text-green-600" />
-        <p class="text-sm text-green-800">{success}</p>
+        <p class="text-sm text-green-800 font-medium">{success}</p>
       </div>
     </div>
   {/if}
   
-  {#if !mostrarFormulario && direccion.calle}
-    <!-- Vista resumida -->
-    <div class="bg-white rounded-xl p-4 mb-4">
-      <div class="space-y-2 text-sm">
-        <p><strong>Para:</strong> {direccion.nombre_destinatario}</p>
-        <p><strong>Dirección:</strong> {direccion.calle} {direccion.numero_exterior}{direccion.numero_interior ? ` Int. ${direccion.numero_interior}` : ''}</p>
-        <p><strong>Colonia:</strong> {direccion.colonia}</p>
-        <p><strong>CP:</strong> {direccion.codigo_postal} - {direccion.ciudad}, {direccion.estado}</p>
-        <p><strong>Teléfono:</strong> {direccion.telefono}</p>
+  {#if !modoEdicion && direccion.calle}
+    <!-- ✅ VISTA RESUMIDA CON TODOS LOS DATOS -->
+    <div class="mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <h4 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+          <CheckCircle class="w-6 h-6 text-green-600" />
+          Dirección Confirmada
+        </h4>
+        <button
+          on:click={() => modoEdicion = true}
+          class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all font-medium"
+        >
+          <Edit class="w-4 h-4" />
+          Modificar
+        </button>
+      </div>
+      
+      <div class="bg-gray-50 rounded-xl p-5 space-y-3 border-2 border-gray-200">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <p class="text-xs text-gray-500 mb-1">👤 Destinatario</p>
+            <p class="font-semibold text-gray-900">{direccion.nombre_destinatario}</p>
+          </div>
+          
+          <div>
+            <p class="text-xs text-gray-500 mb-1">📞 Teléfono</p>
+            <p class="font-semibold text-gray-900">{direccion.telefono}</p>
+          </div>
+          
+          {#if direccion.correo}
+            <div class="md:col-span-2">
+              <p class="text-xs text-gray-500 mb-1">📧 Correo</p>
+              <p class="font-semibold text-gray-900">{direccion.correo}</p>
+            </div>
+          {/if}
+        </div>
+        
+        <div class="border-t border-gray-300 pt-3">
+          <p class="text-xs text-gray-500 mb-2">📍 Dirección Completa</p>
+          <p class="font-semibold text-gray-900">
+            {direccion.calle} {direccion.numero_exterior}{direccion.numero_interior ? ` Int. ${direccion.numero_interior}` : ''}
+          </p>
+          <p class="text-gray-700">
+            Col. {direccion.colonia}
+          </p>
+          <p class="text-gray-700">
+            CP {direccion.codigo_postal} - {direccion.ciudad}, {direccion.estado}
+          </p>
+          <p class="text-gray-700">{direccion.pais}</p>
+        </div>
+        
+        <div class="border-t border-gray-300 pt-3">
+          <p class="text-xs text-gray-500 mb-1">📝 Referencias</p>
+          <p class="text-gray-700">{direccion.referencias}</p>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4 border-t border-gray-300 pt-3">
+          <div>
+            <p class="text-xs text-gray-500 mb-1">🏠 Tipo</p>
+            <p class="text-gray-700">
+              {TIPOS_DOMICILIO.find(t => t.value === direccion.tipo_domicilio)?.label || direccion.tipo_domicilio}
+            </p>
+          </div>
+          
+          <div>
+            <p class="text-xs text-gray-500 mb-1">⏰ Horario</p>
+            <p class="text-gray-700">
+              {HORARIOS.find(h => h.value === direccion.horario_entrega)?.label || direccion.horario_entrega}
+            </p>
+          </div>
+        </div>
+        
+        {#if direccion.persona_recibe}
+          <div class="border-t border-gray-300 pt-3">
+            <p class="text-xs text-gray-500 mb-1">👥 Recibirá</p>
+            <p class="text-gray-700">{direccion.persona_recibe}</p>
+          </div>
+        {/if}
+        
+        {#if direccion.ubicacion_maps}
+          <div class="border-t border-gray-300 pt-3">
+            <a 
+              href={direccion.ubicacion_maps} 
+              target="_blank"
+              class="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-medium text-sm"
+            >
+              <MapPin class="w-4 h-4" />
+              Ver en Google Maps
+            </a>
+          </div>
+        {/if}
       </div>
     </div>
     
-    <button
-      on:click={() => mostrarFormulario = true}
-      class="w-full bg-indigo-600 text-white rounded-xl py-3 hover:bg-indigo-700 transition-all font-medium"
-    >
-      ✏️ Modificar Dirección
-    </button>
   {:else}
-    <!-- Formulario completo -->
-    <div class="space-y-4">
+    <!-- ✅ FORMULARIO COMPLETO SIEMPRE VISIBLE -->
+    <div class="space-y-6">
+      
+      {#if direccionCargada}
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-4">
+          <div class="flex items-start gap-3">
+            <CheckCircle class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p class="text-sm text-blue-900 font-semibold mb-1">
+                Dirección encontrada
+              </p>
+              <p class="text-xs text-blue-800">
+                Hemos llenado el formulario con tu última dirección. 
+                <strong>Por favor revisa que TODOS los datos sean correctos.</strong>
+              </p>
+            </div>
+          </div>
+        </div>
+      {/if}
       
       <!-- Destinatario -->
-      <div class="bg-white rounded-xl p-4">
-        <h4 class="font-semibold text-gray-900 mb-3">👤 Datos del Destinatario</h4>
+      <div class="bg-gray-50 rounded-xl p-5 border-2 border-gray-200">
+        <h4 class="font-bold text-gray-900 mb-4 text-lg flex items-center gap-2">
+          <span class="w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm">1</span>
+          Datos del Destinatario
+        </h4>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label class="label">Nombre completo <span class="text-red-500">*</span></label>
+            <label class="label font-semibold">
+              Nombre completo <span class="text-red-600 text-lg">*</span>
+            </label>
             <input
               type="text"
               bind:value={direccion.nombre_destinatario}
               placeholder="Juan Pérez García"
-              class="input"
+              class="input text-lg py-3"
               required
             />
           </div>
           
           <div>
-            <label class="label">Teléfono <span class="text-red-500">*</span></label>
+            <label class="label font-semibold">
+              Teléfono <span class="text-red-600 text-lg">*</span>
+            </label>
             <div class="relative">
-              <Phone class="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+              <Phone class="absolute left-3 top-4 w-5 h-5 text-gray-400" />
               <input
                 type="tel"
                 bind:value={direccion.telefono}
                 placeholder="7121234567"
                 maxlength="10"
-                class="input pl-10 {direccion.telefono && !validarTelefono(direccion.telefono) ? 'border-red-500' : ''}"
+                class="input pl-11 text-lg py-3 {direccion.telefono && !validarTelefono(direccion.telefono) ? 'border-red-500 border-2' : ''}"
                 required
               />
             </div>
             {#if direccion.telefono && !validarTelefono(direccion.telefono)}
-              <p class="text-xs text-red-600 mt-1">Debe tener 10 dígitos</p>
+              <p class="text-sm text-red-600 mt-1 font-medium">⚠️ Debe tener 10 dígitos</p>
             {/if}
           </div>
           
           <div class="md:col-span-2">
-            <label class="label">Correo electrónico</label>
+            <label class="label font-semibold">Correo electrónico (opcional)</label>
             <div class="relative">
-              <Mail class="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+              <Mail class="absolute left-3 top-4 w-5 h-5 text-gray-400" />
               <input
                 type="email"
                 bind:value={direccion.correo}
                 placeholder="correo@ejemplo.com"
-                class="input pl-10"
+                class="input pl-11 text-lg py-3"
               />
             </div>
           </div>
@@ -265,85 +371,100 @@
       </div>
       
       <!-- Dirección -->
-      <div class="bg-white rounded-xl p-4">
-        <h4 class="font-semibold text-gray-900 mb-3">🏠 Dirección de Entrega</h4>
+      <div class="bg-gray-50 rounded-xl p-5 border-2 border-gray-200">
+        <h4 class="font-bold text-gray-900 mb-4 text-lg flex items-center gap-2">
+          <span class="w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm">2</span>
+          Dirección Completa
+        </h4>
         
         <div class="space-y-4">
           <div>
-            <label class="label">Calle <span class="text-red-500">*</span></label>
+            <label class="label font-semibold">
+              Calle <span class="text-red-600 text-lg">*</span>
+            </label>
             <input
               type="text"
               bind:value={direccion.calle}
               placeholder="Av. Juárez"
-              class="input"
+              class="input text-lg py-3"
               required
             />
           </div>
           
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="label">Número exterior <span class="text-red-500">*</span></label>
+              <label class="label font-semibold">
+                Número exterior <span class="text-red-600 text-lg">*</span>
+              </label>
               <input
                 type="text"
                 bind:value={direccion.numero_exterior}
                 placeholder="123 o S/N"
-                class="input"
+                class="input text-lg py-3"
                 required
               />
             </div>
             
             <div>
-              <label class="label">Número interior</label>
+              <label class="label font-semibold">Número interior (opcional)</label>
               <input
                 type="text"
                 bind:value={direccion.numero_interior}
                 placeholder="Apto 4B"
-                class="input"
+                class="input text-lg py-3"
               />
             </div>
           </div>
           
           <div>
-            <label class="label">Colonia <span class="text-red-500">*</span></label>
+            <label class="label font-semibold">
+              Colonia <span class="text-red-600 text-lg">*</span>
+            </label>
             <input
               type="text"
               bind:value={direccion.colonia}
               placeholder="Centro"
-              class="input"
+              class="input text-lg py-3"
               required
             />
           </div>
           
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label class="label">Código Postal <span class="text-red-500">*</span></label>
+              <label class="label font-semibold">
+                Código Postal <span class="text-red-600 text-lg">*</span>
+              </label>
               <input
                 type="text"
                 bind:value={direccion.codigo_postal}
                 placeholder="44100"
                 maxlength="5"
-                class="input {direccion.codigo_postal && !validarCP(direccion.codigo_postal) ? 'border-red-500' : ''}"
+                class="input text-lg py-3 {direccion.codigo_postal && !validarCP(direccion.codigo_postal) ? 'border-red-500 border-2' : ''}"
                 required
               />
               {#if direccion.codigo_postal && !validarCP(direccion.codigo_postal)}
-                <p class="text-xs text-red-600 mt-1">5 dígitos</p>
+                <p class="text-sm text-red-600 mt-1 font-medium">⚠️ 5 dígitos</p>
               {/if}
             </div>
             
             <div>
-              <label class="label">Ciudad <span class="text-red-500">*</span></label>
+              <label class="label font-semibold">
+                Ciudad <span class="text-red-600 text-lg">*</span>
+              </label>
               <input
                 type="text"
                 bind:value={direccion.ciudad}
                 placeholder="Guadalajara"
-                class="input"
+                class="input text-lg py-3"
                 required
               />
             </div>
             
             <div>
-              <label class="label">Estado <span class="text-red-500">*</span></label>
-              <select bind:value={direccion.estado} class="input" required>
+              <label class="label font-semibold">
+                Estado <span class="text-red-600 text-lg">*</span>
+              </label>
+              <select bind:value={direccion.estado} class="input text-lg py-3" required>
                 <option value="">Selecciona...</option>
                 {#each ESTADOS_MX as estado}
                   <option value={estado}>{estado}</option>
@@ -354,29 +475,36 @@
         </div>
       </div>
       
-      <!-- Referencias -->
-      <div class="bg-white rounded-xl p-4">
-        <h4 class="font-semibold text-gray-900 mb-3">📍 Referencias y Detalles</h4>
+      <!-- Referencias y Detalles -->
+      <div class="bg-gray-50 rounded-xl p-5 border-2 border-gray-200">
+        <h4 class="font-bold text-gray-900 mb-4 text-lg flex items-center gap-2">
+          <span class="w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm">3</span>
+          Referencias y Detalles de Entrega
+        </h4>
         
         <div class="space-y-4">
           <div>
-            <label class="label">Referencias <span class="text-red-500">*</span></label>
+            <label class="label font-semibold">
+              Referencias para encontrar tu domicilio <span class="text-red-600 text-lg">*</span>
+            </label>
             <textarea
               bind:value={direccion.referencias}
-              placeholder="Ej: Casa azul con portón negro, entre calles X y Y"
-              rows="3"
-              class="input resize-none"
+              placeholder="Ej: Casa azul con portón negro, entre calles X y Y, frente al parque"
+              rows="4"
+              class="input resize-none text-base py-3"
               required
             ></textarea>
-            <p class="text-xs text-gray-500 mt-1">
-              Ayuda al repartidor a encontrar tu domicilio
+            <p class="text-sm text-gray-600 mt-2 font-medium">
+              💡 Estas referencias son MUY IMPORTANTES para que el repartidor encuentre tu domicilio
             </p>
           </div>
           
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label class="label">Tipo de domicilio <span class="text-red-500">*</span></label>
-              <select bind:value={direccion.tipo_domicilio} class="input" required>
+              <label class="label font-semibold">
+                Tipo de domicilio <span class="text-red-600 text-lg">*</span>
+              </label>
+              <select bind:value={direccion.tipo_domicilio} class="input text-lg py-3" required>
                 {#each TIPOS_DOMICILIO as tipo}
                   <option value={tipo.value}>{tipo.label}</option>
                 {/each}
@@ -384,8 +512,8 @@
             </div>
             
             <div>
-              <label class="label">Horario de entrega</label>
-              <select bind:value={direccion.horario_entrega} class="input">
+              <label class="label font-semibold">Horario preferido de entrega</label>
+              <select bind:value={direccion.horario_entrega} class="input text-lg py-3">
                 {#each HORARIOS as horario}
                   <option value={horario.value}>{horario.label}</option>
                 {/each}
@@ -394,48 +522,51 @@
           </div>
           
           <div>
-            <label class="label">¿Quién recibirá el pedido?</label>
+            <label class="label font-semibold">¿Quién recibirá el pedido? (opcional)</label>
             <input
               type="text"
               bind:value={direccion.persona_recibe}
-              placeholder="Nombre de quien recibirá (opcional)"
-              class="input"
+              placeholder="Nombre de quien recibirá"
+              class="input text-lg py-3"
             />
           </div>
           
           <div>
-            <label class="label">Link de Google Maps (opcional)</label>
+            <label class="label font-semibold">Link de Google Maps (opcional)</label>
             <input
               type="url"
               bind:value={direccion.ubicacion_maps}
               placeholder="https://maps.google.com/..."
-              class="input"
+              class="input text-lg py-3"
             />
+            <p class="text-xs text-gray-600 mt-1">
+              💡 Opcional pero muy útil para ubicación exacta
+            </p>
           </div>
           
-          <label class="flex items-start gap-3 cursor-pointer">
+          <label class="flex items-start gap-3 cursor-pointer p-3 bg-white rounded-lg border-2 border-gray-200 hover:border-indigo-300 transition-all">
             <input
               type="checkbox"
               bind:checked={direccion.autoriza_tercero}
-              class="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 mt-1"
+              class="w-6 h-6 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 mt-1"
             />
             <div class="flex-1">
-              <span class="text-sm font-medium text-gray-900">
+              <span class="text-base font-semibold text-gray-900">
                 Autorizo que otra persona reciba mi pedido
               </span>
-              <p class="text-xs text-gray-600 mt-1">
+              <p class="text-sm text-gray-600 mt-1">
                 Si no puedes estar presente, indica quién puede recibir el paquete
               </p>
             </div>
           </label>
           
           {#if direccion.autoriza_tercero}
-            <div class="ml-8">
+            <div class="ml-8 animate-slide-down">
               <textarea
                 bind:value={direccion.notas_autorizacion}
-                placeholder="Nombre y relación de la persona autorizada"
+                placeholder="Nombre y relación de la persona autorizada (ej: María López - Hermana)"
                 rows="2"
-                class="input resize-none"
+                class="input resize-none text-base py-3"
               ></textarea>
             </div>
           {/if}
@@ -445,77 +576,97 @@
       {#if error}
         <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
           <div class="flex items-center gap-3">
-            <AlertCircle class="w-5 h-5 text-red-600" />
-            <p class="text-sm text-red-800">{error}</p>
+            <AlertCircle class="w-6 h-6 text-red-600" />
+            <p class="text-base text-red-800 font-medium">{error}</p>
           </div>
         </div>
       {/if}
       
       <!-- Checklist visual -->
-      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
-        <h5 class="font-semibold text-amber-900 mb-2 flex items-center gap-2">
-          <CheckCircle class="w-5 h-5" />
+      <div class="bg-amber-50 border-2 border-amber-300 rounded-xl p-5">
+        <h5 class="font-bold text-amber-900 mb-3 flex items-center gap-2 text-lg">
+          <CheckCircle class="w-6 h-6" />
           Verificación de datos
         </h5>
-        <div class="space-y-1 text-sm">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-base">
           <div class="flex items-center gap-2">
-            <span class="{direccion.nombre_destinatario.trim() ? 'text-green-600' : 'text-gray-400'}">
+            <span class="{direccion.nombre_destinatario.trim() ? 'text-green-600 text-xl' : 'text-gray-400 text-xl'}">
               {direccion.nombre_destinatario.trim() ? '✓' : '○'}
             </span>
-            <span>Nombre completo</span>
+            <span class="font-medium">Nombre completo</span>
           </div>
           <div class="flex items-center gap-2">
-            <span class="{validarTelefono(direccion.telefono) ? 'text-green-600' : 'text-gray-400'}">
+            <span class="{validarTelefono(direccion.telefono) ? 'text-green-600 text-xl' : 'text-gray-400 text-xl'}">
               {validarTelefono(direccion.telefono) ? '✓' : '○'}
             </span>
-            <span>Teléfono válido</span>
+            <span class="font-medium">Teléfono válido</span>
           </div>
           <div class="flex items-center gap-2">
-            <span class="{direccion.calle.trim() && direccion.numero_exterior.trim() ? 'text-green-600' : 'text-gray-400'}">
+            <span class="{direccion.calle.trim() && direccion.numero_exterior.trim() ? 'text-green-600 text-xl' : 'text-gray-400 text-xl'}">
               {direccion.calle.trim() && direccion.numero_exterior.trim() ? '✓' : '○'}
             </span>
-            <span>Calle y número</span>
+            <span class="font-medium">Calle y número</span>
           </div>
           <div class="flex items-center gap-2">
-            <span class="{validarCP(direccion.codigo_postal) && direccion.ciudad.trim() && direccion.estado ? 'text-green-600' : 'text-gray-400'}">
+            <span class="{direccion.colonia.trim() ? 'text-green-600 text-xl' : 'text-gray-400 text-xl'}">
+              {direccion.colonia.trim() ? '✓' : '○'}
+            </span>
+            <span class="font-medium">Colonia</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="{validarCP(direccion.codigo_postal) && direccion.ciudad.trim() && direccion.estado ? 'text-green-600 text-xl' : 'text-gray-400 text-xl'}">
               {validarCP(direccion.codigo_postal) && direccion.ciudad.trim() && direccion.estado ? '✓' : '○'}
             </span>
-            <span>CP, ciudad y estado</span>
+            <span class="font-medium">CP, ciudad y estado</span>
           </div>
           <div class="flex items-center gap-2">
-            <span class="{direccion.referencias.trim() ? 'text-green-600' : 'text-gray-400'}">
+            <span class="{direccion.referencias.trim() ? 'text-green-600 text-xl' : 'text-gray-400 text-xl'}">
               {direccion.referencias.trim() ? '✓' : '○'}
             </span>
-            <span>Referencias de ubicación</span>
+            <span class="font-medium">Referencias</span>
           </div>
         </div>
       </div>
       
-      <!-- Botones -->
-      <div class="flex gap-3">
-        <button
-          on:click={guardarDireccion}
-          disabled={!formularioCompleto || loading}
-          class="flex-1 bg-indigo-600 text-white rounded-xl py-4 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-lg flex items-center justify-center gap-2 shadow-lg"
-        >
-          {#if loading}
-            <Loader2 class="w-6 h-6 animate-spin" />
-            <span>Guardando...</span>
-          {:else}
-            <CheckCircle class="w-6 h-6" />
-            <span>Guardar y Continuar</span>
-          {/if}
-        </button>
-        
-        {#if direccion.calle && !loading}
-          <button
-            on:click={() => mostrarFormulario = false}
-            class="px-6 py-4 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium"
-          >
-            Cancelar
-          </button>
+      <!-- Botón de guardar -->
+      <button
+        on:click={guardarDireccion}
+        disabled={!formularioCompleto || loading}
+        class="w-full bg-indigo-600 text-white rounded-xl py-5 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-xl flex items-center justify-center gap-3 shadow-xl transition-all transform hover:scale-[1.02] disabled:transform-none"
+      >
+        {#if loading}
+          <Loader2 class="w-7 h-7 animate-spin" />
+          <span>Guardando dirección...</span>
+        {:else}
+          <CheckCircle class="w-7 h-7" />
+          <span>Confirmar y Guardar Dirección</span>
         {/if}
-      </div>
+      </button>
     </div>
   {/if}
 </div>
+
+<style>
+  .label {
+    @apply block text-sm text-gray-700 mb-2;
+  }
+  
+  .input {
+    @apply w-full px-4 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all;
+  }
+  
+  @keyframes slide-down {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .animate-slide-down {
+    animation: slide-down 0.3s ease-out;
+  }
+</style>

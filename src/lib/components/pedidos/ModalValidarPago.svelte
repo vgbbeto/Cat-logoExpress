@@ -31,9 +31,12 @@
       if (!result.success) throw new Error(result.error);
       
       alert(result.message);
-      
+      procesarRespuestaWhatsApp(result);
       // ✅ CORRECCIÓN: Emitir evento de éxito para forzar recarga
       dispatch('validated', result.data);
+      if (result.whatsapp?.url && result.whatsapp?.auto_abrir) {
+            window.open(result.whatsapp.url, '_blank');
+}
       dispatch('close');
       
     } catch (error) {
