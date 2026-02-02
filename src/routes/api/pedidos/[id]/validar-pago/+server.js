@@ -62,6 +62,7 @@ export async function POST({ params, request }) {
     let mensajeHistorial;
     let tipoNotificacion;
     let estadoFinal;
+
     
     if (aprobado) {
       // ✅ PAGO APROBADO
@@ -213,3 +214,38 @@ function validarDireccionCompleta(direccion) {
     return valor && String(valor).trim() !== '';
   });
 }
+    let urlWhatsApp = null;
+try {
+  const { data: config } = await supabaseAdmin
+    .from('configuracion')
+    .select('*')
+    .single();
+  
+  const { generarMensajeWhatsApp } = await import('$lib/server/notificaciones/mensajes');
+  const resultado = generarMensajeWhatsApp(
+    pedidoActualizado, 
+    tipoNotificacion, 
+    config, 
+    aprobado ? {} : { motivo: motivo_rechazo }
+  );
+  
+   if (resultado?.url) {
+    urlWhatsApp = resultado.url;
+  }
+} catch (err) {
+  console.error('Error generando WhatsApp:', err);
+}
+
+const mensaje = aprobado 
+  ? `✅ Pago validado. El pedido pasó automáticamente a estado ${estadoFinal.toUpperCase()}.`
+  : '❌ Pago rechazado. El cliente debe subir un nuevo comprobante.';
+
+return json({
+  success: true,
+  data: pedidoActualizado,
+  message: mensaje,
+  whatsapp: {
+    url: urlWhatsApp,
+    auto_abrir: true
+  }
+});

@@ -18,6 +18,7 @@ export async function POST({ params, request }) {
       .select('*')
       .eq('id', id)
       .single();
+  
 
     if (error || !pedido) {
       return json({ success: false, error: 'Pedido no encontrado' }, { status: 404 });
@@ -111,12 +112,43 @@ export async function POST({ params, request }) {
     } catch (notifError) {
       console.error('Error encolando notificación:', notifError);
     }
+      // ✅ GENERAR URL DE WHATSAPP
+    let urlWhatsApp = null;
+
+    try {
+      const { data: config } = await supabaseAdmin
+        .from('configuracion')
+        .select('*')
+        .single();
+      
+      const { generarMensajeWhatsApp } = await import('$lib/server/notificaciones/mensajes');
+      const resultado = generarMensajeWhatsApp(
+        pedidoActualizado,
+        'pedido_enviado',
+        config,
+        {
+          guia_envio: guia_envio?.numero_guia || 'LOCAL',
+          transportadora: guia_envio?.paqueteria || 'Entrega Local'
+        }
+      );
+      
+      if (resultado?.url) {
+        urlWhatsApp = resultado.url;
+      }
+    } catch (err) {
+      console.error('Error generando WhatsApp:', err);
+    }
 
     return json({
       success: true,
       data: pedidoActualizado,
-      message: 'Pedido marcado como enviado'
-    });
+      message: 'Pedido marcado como enviado',
+      whatsapp: {
+        url: urlWhatsApp,
+        auto_abrir: true
+      }
+    });   
+      
 
   } catch (error) {
     console.error('Error en marcar-enviado:', error);

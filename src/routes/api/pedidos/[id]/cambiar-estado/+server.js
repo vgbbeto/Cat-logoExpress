@@ -1,5 +1,5 @@
 // src/routes/api/pedidos/[id]/cambiar-estado/+server.js
-// ✅ CAMBIAR ESTADO CON NOTIFICACIONES
+//  APERTURA AUTOMÁTICA DE WHATSAPP
 
 import { json } from '@sveltejs/kit';
 import { supabaseAdmin } from '$lib/supabaseServer';
@@ -8,6 +8,7 @@ import {
   validarTransicionConContexto 
 } from '$lib/server/pedidos/estados';
 import { encolarNotificacion, procesarCola } from '$lib/server/notificaciones/cola';
+import { generarMensajeWhatsApp } from '$lib/server/notificaciones/mensajes';
 
 export async function POST({ params, request }) {
   const { id } = params;
@@ -22,7 +23,7 @@ export async function POST({ params, request }) {
     // Obtener pedido actual
     const { data: pedido, error: errorPedido } = await supabaseAdmin
       .from('pedidos')
-      .select('*')
+      .select('*, items:pedidos_items(*)')
       .eq('id', id)
       .single();
     
@@ -40,6 +41,13 @@ export async function POST({ params, request }) {
     const updateData = { estado: estado_nuevo };
     
     switch (estado_nuevo) {
+      case ESTADOS.CONFIRMADO:
+        updateData.fecha_confirmado = new Date().toISOString();
+        break;
+      case ESTADOS.PAGADO:
+        updateData.fecha_pagado = new Date().toISOString();
+        updateData.estado_pago = 'pagado';
+        break;
       case ESTADOS.PREPARANDO:
         updateData.fecha_preparando = new Date().toISOString();
         break;
@@ -69,7 +77,7 @@ export async function POST({ params, request }) {
       .from('pedidos')
       .update(updateData)
       .eq('id', id)
-      .select()
+      .select('*, items:pedidos_items(*)')
       .single();
     
     if (errorUpdate) {
@@ -88,15 +96,49 @@ export async function POST({ params, request }) {
         notas: notas || `Cambio de estado a ${estado_nuevo}`
       });
     
-    // ✅ ENCOLAR NOTIFICACIÓN
-    await enviarNotificacionCambioEstado(pedidoActualizado, estado_nuevo);
+    // ✅ GENERAR URL DE WHATSAPP
+    let urlWhatsApp = null;
+    let mensajeGenerado = null;
+    
+    try {
+      const { data: config } = await supabaseAdmin
+        .from('configuracion')
+        .select('*')
+        .single();
+      
+      const resultado = await generarMensajeYURL(pedidoActualizado, estado_nuevo, config);
+      
+      if (resultado) {
+        urlWhatsApp = resultado.url;
+        mensajeGenerado = resultado.mensaje;
+        
+        // ✅ ENCOLAR NOTIFICACIÓN (para historial)
+        await encolarNotificacion({
+          pedidoId: id,
+          clienteWhatsapp: pedidoActualizado.cliente_whatsapp,
+          tipo: obtenerTipoNotificacion(estado_nuevo),
+          prioridad: 'alta',
+          metadata: resultado.metadata || {}
+        });
+        
+        // Procesar cola en background
+        procesarCola().catch(err => console.error('Error procesando cola:', err));
+      }
+    } catch (notifError) {
+      console.error('⚠️ Error generando mensaje WhatsApp:', notifError);
+    }
     
     console.log(`✅ Pedido ${pedido.numero_pedido}: ${pedido.estado} → ${estado_nuevo}`);
     
     return json({
       success: true,
       data: pedidoActualizado,
-      message: `Pedido actualizado a ${estado_nuevo}`
+      message: `Pedido actualizado a ${estado_nuevo}`,
+      whatsapp: {
+        url: urlWhatsApp,
+        mensaje: mensajeGenerado,
+        auto_abrir: true // ✅ Señal para abrir automáticamente
+      }
     });
     
   } catch (error) {
@@ -106,67 +148,75 @@ export async function POST({ params, request }) {
 }
 
 /**
- * ✅ Encolar notificación según el cambio de estado
+ * ✅ Genera mensaje y URL de WhatsApp según el estado
  */
-async function enviarNotificacionCambioEstado(pedido, estadoNuevo) {
-  try {
-    let tipoNotificacion = null;
-    let metadata = {};
-    let prioridad = 'media';
-    
-    switch (estadoNuevo) {
-      case ESTADOS.CONFIRMADO:
-        tipoNotificacion = 'pedido_confirmado';
-        prioridad = 'alta';
-        break;
-        
-      case ESTADOS.PREPARANDO:
-        tipoNotificacion = 'pedido_preparando';
-        metadata = {
-          ciudad: pedido.cliente_direccion?.ciudad,
-          estado: pedido.cliente_direccion?.estado
-        };
-        break;
-        
-      case ESTADOS.ENVIADO:
-        tipoNotificacion = 'pedido_enviado';
-        prioridad = 'alta';
-        metadata = {
-          paqueteria: pedido.guia_envio?.paqueteria,
-          numero_guia: pedido.guia_envio?.numero_guia,
-          url_rastreo: pedido.guia_envio?.url_rastreo,
-          es_local: pedido.guia_envio?.es_entrega_local
-        };
-        break;
-        
-      case ESTADOS.RECIBIDO:
-        tipoNotificacion = 'pedido_recibido_confirmacion';
-        break;
-        
-      case ESTADOS.ENTREGADO:
-        tipoNotificacion = 'pedido_entregado';
-        break;
-        
-      case ESTADOS.CANCELADO:
-        tipoNotificacion = 'pedido_cancelado';
-        metadata = { motivo: pedido.motivo_cancelacion };
-        break;
-    }
-    
-    if (tipoNotificacion) {
-      await encolarNotificacion({
-        pedidoId: pedido.id,
-        clienteWhatsapp: pedido.cliente_whatsapp,
-        tipo: tipoNotificacion,
-        prioridad: prioridad,
-        metadata: metadata
-      });
+async function generarMensajeYURL(pedido, estadoNuevo, config) {
+  let tipoNotificacion = null;
+  let metadata = {};
+  
+  switch (estadoNuevo) {
+    case ESTADOS.CONFIRMADO:
+      tipoNotificacion = 'pedido_confirmado';
       
-      // Procesar cola inmediatamente
-      await procesarCola();
-    }
-    
-  } catch (error) {
-    console.error('⚠️ Error encolando notificación (no crítico):', error);
+      // Obtener cuentas de pago
+      const cuentasPago = config?.cuentas_pago 
+        ? (typeof config.cuentas_pago === 'string' 
+            ? JSON.parse(config.cuentas_pago) 
+            : config.cuentas_pago)
+        : [];
+      
+      metadata = { cuentas_pago: cuentasPago };
+      break;
+      
+    case ESTADOS.PREPARANDO:
+      tipoNotificacion = 'pedido_preparando';
+      metadata = {
+        ciudad: pedido.cliente_direccion?.ciudad,
+        estado: pedido.cliente_direccion?.estado
+      };
+      break;
+      
+    case ESTADOS.ENVIADO:
+      tipoNotificacion = 'pedido_enviado';
+      metadata = {
+        guia_envio: pedido.guia_envio?.numero_guia,
+        transportadora: pedido.guia_envio?.paqueteria,
+        url_rastreo: pedido.guia_envio?.url_rastreo
+      };
+      break;
+      
+    case ESTADOS.RECIBIDO:
+      tipoNotificacion = 'pedido_recibido_confirmacion';
+      break;
+      
+    case ESTADOS.CANCELADO:
+      tipoNotificacion = 'pedido_cancelado';
+      metadata = { motivo: pedido.motivo_cancelacion };
+      break;
+      
+    default:
+      return null;
   }
+  
+  if (!tipoNotificacion) return null;
+  
+  // Generar mensaje usando la función existente
+  const resultado = generarMensajeWhatsApp(pedido, tipoNotificacion, config, metadata);
+  
+  return resultado ? { ...resultado, metadata } : null;
+}
+
+/**
+ * Mapear estado a tipo de notificación
+ */
+function obtenerTipoNotificacion(estadoNuevo) {
+  const mapa = {
+    [ESTADOS.CONFIRMADO]: 'pedido_confirmado',
+    [ESTADOS.PREPARANDO]: 'pedido_preparando',
+    [ESTADOS.ENVIADO]: 'pedido_enviado',
+    [ESTADOS.RECIBIDO]: 'pedido_recibido_confirmacion',
+    [ESTADOS.CANCELADO]: 'pedido_cancelado'
+  };
+  
+  return mapa[estadoNuevo] || 'cambio_estado';
 }

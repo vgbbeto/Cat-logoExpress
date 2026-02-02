@@ -57,10 +57,38 @@ export async function POST({ params, request }) {
         notas: `Pedido cancelado: ${motivo}`
       });
     
+    // ✅ GENERAR URL DE WHATSAPP
+    let urlWhatsApp = null;
+
+    try {
+      const { data: config } = await supabaseAdmin
+        .from('configuracion')
+        .select('*')
+        .single();
+      
+      const { generarMensajeWhatsApp } = await import('$lib/server/notificaciones/mensajes');
+      const resultado = generarMensajeWhatsApp(
+        data,
+        'pedido_cancelado',
+        config,
+        { motivo }
+      );
+      
+      if (resultado?.url) {
+        urlWhatsApp = resultado.url;
+      }
+    } catch (err) {
+      console.error('Error generando WhatsApp:', err);
+    }
+
     return json({
       success: true,
       data,
-      message: 'Pedido cancelado'
+      message: 'Pedido cancelado',
+      whatsapp: {
+        url: urlWhatsApp,
+        auto_abrir: true
+      }
     });
     
   } catch (error) {

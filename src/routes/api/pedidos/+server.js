@@ -318,12 +318,11 @@ export async function POST({ request }) {
       console.warn('⚠️ Error registrando historial:', errorHistorial);
       // No fallar por esto
     }
-    
-    // ========================================
     // 7. ENCOLAR NOTIFICACIÓN
     // ========================================
     console.log('📲 Encolando notificación...');
-    
+    let urlWhatsApp = null;
+
     try {
       await encolarNotificacion({
         pedidoId: pedido.id,
@@ -336,10 +335,31 @@ export async function POST({ request }) {
           items_count: items.length
         }
       });
-      // ✅ AGREGAR ESTO - Procesar inmediatamente
-      const { procesarColaNot } = await import('$lib/server/notificaciones/procesador');
-      await procesarColaNot();
-      console.log('✅ Notificación encolada');
+      // ✅ GENERAR URL DE WHATSAPP
+        const { data: config } = await supabaseAdmin
+          .from('configuracion')
+          .select('*')
+          .single();
+        
+        if (config) {
+          const { generarMensajeWhatsApp } = await import('$lib/server/notificaciones/mensajes');
+          const resultado = generarMensajeWhatsApp(
+            { ...pedido, items },
+            'pedido_recibido',
+            config,
+            {}
+          );
+          
+          if (resultado?.url) {
+            urlWhatsApp = resultado.url;
+          }
+        }
+      
+      // ✅ CORRECCIÓN: Procesar inmediatamente
+      const { procesarCola } = await import('$lib/server/notificaciones/cola');
+      await procesarCola();
+      
+      console.log('✅ Notificación encolada y procesada');
     } catch (notifError) {
       console.error('⚠️ Error encolando notificación:', notifError);
       // No fallar el proceso principal
@@ -366,6 +386,10 @@ export async function POST({ request }) {
       success: true,
       data: pedidoCompleto || { ...pedido, items },
       message: 'Pedido creado exitosamente',
+      whatsapp: {
+        url: urlWhatsApp,
+        auto_abrir: true
+      },
       metadata: {
         numero_pedido: pedido.numero_pedido,
         total: pedido.total,

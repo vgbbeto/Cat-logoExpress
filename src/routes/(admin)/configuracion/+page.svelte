@@ -1,13 +1,14 @@
 <!-- src/routes/(admin)/configuracion/+page.svelte -->
-<!-- ✅ VERSIÓN CORREGIDA: Guardado completo de imagenes_tienda, redes_sociales y ubicacion -->
+<!-- ✅ VERSIÓN ACTUALIZADA: Con BankAccountsManager y colores reorganizados -->
 <script>
   import { onMount } from 'svelte';
-  import { Settings, Save, Loader2, CheckCircle2, Palette, Share2, MapPin, Image as ImageIcon } from 'lucide-svelte';
+  import { Settings, Save, Loader2, CheckCircle2, Palette, Share2, MapPin, Image as ImageIcon, CreditCard, Truck, FileText, DollarSign } from 'lucide-svelte';
   import ColorPalettePicker from '$lib/components/ui/ColorPalettePicker.svelte';
   import SocialMediaLinks from '$lib/components/ui/SocialMediaLinks.svelte';
   import LocationPicker from '$lib/components/ui/LocationPicker.svelte';
   import MultipleImageUploader from '$lib/components/ui/MultipleImageUploader.svelte';
   import ImageUploader from '$lib/components/ui/ImageUploader.svelte';
+  import BankAccountsManager from '$lib/components/ui/BankAccountsManager.svelte';
   import { getPaletteById } from '$lib/data/colorPalettes';
   
   let configuracion = null;
@@ -36,7 +37,16 @@
       estado: '',
       codigo_postal: '',
       google_maps_url: ''
-    }
+    },
+    cuentas_pago: [],
+    envio_visible: true,
+    envio_disponible: true,
+    facturacion_visible: true,
+    facturacion_disponible: true,
+    pago_deposito_visible: true,
+    pago_deposito_disponible: true,
+    pago_transferencia_visible: true,
+    pago_transferencia_disponible: true
   };
   
   let paletaSeleccionada = 'blue-default';
@@ -80,7 +90,16 @@
             estado: '',
             codigo_postal: '',
             google_maps_url: ''
-          }
+          },
+          cuentas_pago: result.data.cuentas_pago || [],
+          envio_visible: result.data.envio_visible ?? true,
+          envio_disponible: result.data.envio_disponible ?? true,
+          facturacion_visible: result.data.facturacion_visible ?? true,
+          facturacion_disponible: result.data.facturacion_disponible ?? true,
+          pago_deposito_visible: result.data.pago_deposito_visible ?? true,
+          pago_deposito_disponible: result.data.pago_deposito_disponible ?? true,
+          pago_transferencia_visible: result.data.pago_transferencia_visible ?? true,
+          pago_transferencia_disponible: result.data.pago_transferencia_disponible ?? true
         };
         
         if (formData.colores_tema?.palette_id) {
@@ -135,6 +154,10 @@
     formData.logo_url = '';
   }
   
+  function handleCuentasChange(event) {
+    formData.cuentas_pago = event.detail;
+  }
+  
   async function guardarConfiguracion() {
     guardando = true;
     
@@ -156,7 +179,8 @@
       console.log('🔍 Datos a guardar:', {
         imagenes_tienda: formData.imagenes_tienda,
         redes_sociales: formData.redes_sociales,
-        ubicacion: formData.ubicacion
+        ubicacion: formData.ubicacion,
+        cuentas_pago: formData.cuentas_pago
       });
       
       const response = await fetch('/api/configuracion', {
@@ -214,7 +238,16 @@
           estado: '',
           codigo_postal: '',
           google_maps_url: ''
-        }
+        },
+        cuentas_pago: configuracion.cuentas_pago || [],
+        envio_visible: configuracion.envio_visible ?? true,
+        envio_disponible: configuracion.envio_disponible ?? true,
+        facturacion_visible: configuracion.facturacion_visible ?? true,
+        facturacion_disponible: configuracion.facturacion_disponible ?? true,
+        pago_deposito_visible: configuracion.pago_deposito_visible ?? true,
+        pago_deposito_disponible: configuracion.pago_deposito_disponible ?? true,
+        pago_transferencia_visible: configuracion.pago_transferencia_visible ?? true,
+        pago_transferencia_disponible: configuracion.pago_transferencia_disponible ?? true
       };
       
       if (configuracion.colores_tema?.palette_id) {
@@ -268,83 +301,12 @@
   {:else}
     <form on:submit|preventDefault={guardarConfiguracion} class="space-y-6">
       
-      <!-- 🏢 LOGO DEL NEGOCIO -->
-      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
-        <div class="flex items-center gap-2 mb-6">
-          <ImageIcon class="w-6 h-6 text-blue-600" />
-          <h2 class="text-xl font-semibold text-gray-800">Logo del Negocio</h2>
-        </div>
-        
-        <ImageUploader
-          bind:imageUrl={formData.logo_url}
-          label="Logo (aparecerá en el header)"
-          disabled={guardando}
-          on:upload={handleLogoUpload}
-          on:remove={handleLogoRemove}
-        />
-      </div>
-      
-      <!-- 🖼️ IMÁGENES DEL NEGOCIO -->
-      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500">
-        <div class="flex items-center gap-2 mb-6">
-          <ImageIcon class="w-6 h-6 text-green-600" />
-          <h2 class="text-xl font-semibold text-gray-800">Imágenes de la Tienda</h2>
-        </div>
-        
-        <MultipleImageUploader
-          bind:images={formData.imagenes_tienda}
-          label="Carrusel de imágenes (página principal)"
-          maxImages={10}
-          disabled={guardando}
-          on:change={handleImagenesChange}
-        />
-      </div>
-      
-      <!-- 🎨 PERSONALIZACIÓN VISUAL -->
-      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-purple-500">
-        <div class="flex items-center gap-2 mb-6">
-          <Palette class="w-6 h-6 text-purple-600" />
-          <h2 class="text-xl font-semibold text-gray-800">Personalización Visual</h2>
-        </div>
-        
-        <ColorPalettePicker 
-          bind:selectedPaletteId={paletaSeleccionada}
-          disabled={guardando}
-          on:change={handlePaletteChange}
-        />
-      </div>
-      
-      <!-- 📱 REDES SOCIALES -->
-      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
-        <div class="flex items-center gap-2 mb-6">
-          <Share2 class="w-6 h-6 text-blue-600" />
-          <h2 class="text-xl font-semibold text-gray-800">Redes Sociales</h2>
-        </div>
-        
-        <SocialMediaLinks 
-          bind:socialLinks={redesSociales}
-          disabled={guardando}
-          on:change={handleSocialChange}
-        />
-      </div>
-      
-      <!-- 📍 UBICACIÓN -->
-      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-red-500">
-        <div class="flex items-center gap-2 mb-6">
-          <MapPin class="w-6 h-6 text-red-600" />
-          <h2 class="text-xl font-semibold text-gray-800">Ubicación</h2>
-        </div>
-        
-        <LocationPicker
-          bind:ubicacion={formData.ubicacion}
-          disabled={guardando}
-          on:change={handleLocationChange}
-        />
-      </div>
-      
       <!-- 🏢 INFORMACIÓN DEL NEGOCIO -->
-      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-primary-500">
-        <h2 class="text-xl font-semibold text-gray-800 mb-6">Información del Negocio</h2>
+      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
+        <h2 class="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
+          <Settings class="w-6 h-6 text-blue-600" />
+          Información del Negocio
+        </h2>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="md:col-span-2">
@@ -412,86 +374,174 @@
         </div>
       </div>
       
-      <!-- 💳 MÉTODOS DE PAGO -->
-      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-yellow-500">
-        <h2 class="text-xl font-semibold text-gray-800 mb-6">Métodos de Pago</h2>
+      <!-- 🖼️ LOGO DEL NEGOCIO -->
+      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-indigo-500">
+        <div class="flex items-center gap-2 mb-6">
+          <ImageIcon class="w-6 h-6 text-indigo-600" />
+          <h2 class="text-xl font-semibold text-gray-800">Logo del Negocio</h2>
+        </div>
         
-        <div class="grid grid-cols-2 gap-4 mb-6">
+        <ImageUploader
+          bind:imageUrl={formData.logo_url}
+          label="Logo (aparecerá en el header)"
+          disabled={guardando}
+          on:upload={handleLogoUpload}
+          on:remove={handleLogoRemove}
+        />
+      </div>
+      
+      <!-- 🖼️ IMÁGENES DEL NEGOCIO -->
+      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500">
+        <div class="flex items-center gap-2 mb-6">
+          <ImageIcon class="w-6 h-6 text-green-600" />
+          <h2 class="text-xl font-semibold text-gray-800">Imágenes de la Tienda</h2>
+        </div>
+        
+        <MultipleImageUploader
+          bind:images={formData.imagenes_tienda}
+          label="Carrusel de imágenes (página principal)"
+          maxImages={10}
+          disabled={guardando}
+          on:change={handleImagenesChange}
+        />
+      </div>
+      
+      <!-- 🎨 PERSONALIZACIÓN VISUAL -->
+      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-purple-500">
+        <div class="flex items-center gap-2 mb-6">
+          <Palette class="w-6 h-6 text-purple-600" />
+          <h2 class="text-xl font-semibold text-gray-800">Personalización Visual</h2>
+        </div>
+        
+        <ColorPalettePicker 
+          bind:selectedPaletteId={paletaSeleccionada}
+          disabled={guardando}
+          on:change={handlePaletteChange}
+        />
+      </div>
+      
+      <!-- 📱 REDES SOCIALES -->
+      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-pink-500">
+        <div class="flex items-center gap-2 mb-6">
+          <Share2 class="w-6 h-6 text-pink-600" />
+          <h2 class="text-xl font-semibold text-gray-800">Redes Sociales</h2>
+        </div>
+        
+        <SocialMediaLinks 
+          bind:socialLinks={redesSociales}
+          disabled={guardando}
+          on:change={handleSocialChange}
+        />
+      </div>
+      
+      <!-- 📍 UBICACIÓN -->
+      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-red-500">
+        <div class="flex items-center gap-2 mb-6">
+          <MapPin class="w-6 h-6 text-red-600" />
+          <h2 class="text-xl font-semibold text-gray-800">Ubicación</h2>
+        </div>
+        
+        <LocationPicker
+          bind:ubicacion={formData.ubicacion}
+          disabled={guardando}
+          on:change={handleLocationChange}
+        />
+      </div>
+      
+      <!-- 💳 CUENTAS BANCARIAS -->
+      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-yellow-500">
+        <div class="flex items-center gap-2 mb-6">
+          <CreditCard class="w-6 h-6 text-yellow-600" />
+          <h2 class="text-xl font-semibold text-gray-800">Cuentas Bancarias</h2>
+        </div>
+        
+        <BankAccountsManager
+          bind:cuentas={formData.cuentas_pago}
+          disabled={guardando}
+          on:change={handleCuentasChange}
+        />
+      </div>
+      
+      <!-- 💰 MÉTODOS DE PAGO -->
+      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-amber-500">
+        <h2 class="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
+          <DollarSign class="w-6 h-6 text-amber-600" />
+          Métodos de Pago
+        </h2>
+        
+        <div class="grid grid-cols-2 gap-4">
           <!-- Depósito -->
-          <div>
-            <label class="flex items-center mb-2">
+          <div class="space-y-2">
+            <h3 class="font-medium text-gray-700">Depósito Bancario</h3>
+            <label class="flex items-center">
               <input type="checkbox" bind:checked={formData.pago_deposito_visible} class="w-4 h-4 mr-2" />
-              Mostrar opción "Depósito"
+              <span class="text-sm">Mostrar opción</span>
             </label>
             <label class="flex items-center">
               <input type="checkbox" bind:checked={formData.pago_deposito_disponible} class="w-4 h-4 mr-2" />
-              Disponible para uso
+              <span class="text-sm">Disponible para uso</span>
             </label>
           </div>
           
           <!-- Transferencia -->
-          <div>
-            <label class="flex items-center mb-2">
+          <div class="space-y-2">
+            <h3 class="font-medium text-gray-700">Transferencia Electrónica</h3>
+            <label class="flex items-center">
               <input type="checkbox" bind:checked={formData.pago_transferencia_visible} class="w-4 h-4 mr-2" />
-              Mostrar opción "Transferencia"
+              <span class="text-sm">Mostrar opción</span>
             </label>
             <label class="flex items-center">
               <input type="checkbox" bind:checked={formData.pago_transferencia_disponible} class="w-4 h-4 mr-2" />
-              Disponible para uso
+              <span class="text-sm">Disponible para uso</span>
             </label>
           </div>
-        </div>
-        
-        <!-- Cuentas bancarias -->
-        <div>
-          <label class="label mb-2">Cuentas Bancarias (JSON)</label>
-          <textarea
-            bind:value={formData.cuentas_pago}
-            rows="8"
-            class="input font-mono text-xs"
-            placeholder={`[{"banco":"BBVA","titular":"Empresa SA","numero_cuenta":"123456","clabe":"012345678901234567"}]`}
-          />
-          <p class="text-xs text-gray-500 mt-1">
-            Formato JSON. <a href="#" class="text-primary-600">Ver ejemplo</a>
-          </p>
         </div>
       </div>
 
       <!-- 🚚 ENVÍO -->
-      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500">
-        <h2 class="text-xl font-semibold text-gray-800 mb-4">Configuración de Envío</h2>
+      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-cyan-500">
+        <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+          <Truck class="w-6 h-6 text-cyan-600" />
+          Configuración de Envío
+        </h2>
         
         <div class="grid grid-cols-2 gap-4">
           <label class="flex items-center">
             <input type="checkbox" bind:checked={formData.envio_visible} class="w-4 h-4 mr-2" />
-            Mostrar opción de envío
+            <span class="text-sm">Mostrar opción de envío</span>
           </label>
           <label class="flex items-center">
             <input type="checkbox" bind:checked={formData.envio_disponible} class="w-4 h-4 mr-2" />
-            Envío disponible
+            <span class="text-sm">Envío disponible</span>
           </label>
         </div>
       </div>
 
       <!-- 📄 FACTURACIÓN -->
-      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-purple-500">
-        <h2 class="text-xl font-semibold text-gray-800 mb-4">Configuración de Facturación</h2>
+      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-teal-500">
+        <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+          <FileText class="w-6 h-6 text-teal-600" />
+          Configuración de Facturación
+        </h2>
         
         <div class="grid grid-cols-2 gap-4">
           <label class="flex items-center">
             <input type="checkbox" bind:checked={formData.facturacion_visible} class="w-4 h-4 mr-2" />
-            Mostrar opción de facturación
+            <span class="text-sm">Mostrar opción de facturación</span>
           </label>
           <label class="flex items-center">
             <input type="checkbox" bind:checked={formData.facturacion_disponible} class="w-4 h-4 mr-2" />
-            Facturación disponible
+            <span class="text-sm">Facturación disponible</span>
           </label>
         </div>
       </div>
       
-      <!-- 💰 CONFIGURACIÓN FINANCIERA -->
-      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500">
-        <h2 class="text-xl font-semibold text-gray-800 mb-6">Configuración Financiera</h2>
+      <!-- 💵 CONFIGURACIÓN FINANCIERA -->
+      <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-emerald-500">
+        <h2 class="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
+          <DollarSign class="w-6 h-6 text-emerald-600" />
+          Configuración Financiera
+        </h2>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>

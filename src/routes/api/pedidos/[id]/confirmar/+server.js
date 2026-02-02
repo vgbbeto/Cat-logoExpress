@@ -103,8 +103,8 @@ export async function POST({ params, request }) {
       console.log('✅ Notificación encolada');
       
       // ✅ PROCESAR INMEDIATAMENTE
-      const { procesarColaNot } = await import('$lib/server/notificaciones/procesador');
-      await procesarColaNot();
+      const { procesarCola } = await import('$lib/server/notificaciones/cola');
+      await procesarCola();
       
       console.log(`✅ Notificación procesada para pedido ${pedidoActualizado.numero_pedido}`);
     } catch (notifError) {

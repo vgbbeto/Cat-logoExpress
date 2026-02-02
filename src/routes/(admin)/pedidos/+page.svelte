@@ -1,8 +1,8 @@
 <!-- src/routes/(admin)/pedidos/+page.svelte -->
-<!-- ✅ VERSIÓN 2901 -->
+<!-- ✅ VERSIÓN CORREGIDA - Estructura de tabla arreglada -->
 <script>
   import { onMount } from 'svelte';
-  import { Bell, Search, Eye, MessageCircle, CheckCircle, XCircle, Edit } from 'lucide-svelte';
+  import { Bell, Search, Eye, MessageCircle, CheckCircle, XCircle, Edit, Truck } from 'lucide-svelte';
   import { ESTADOS, CONFIG_ESTADOS, obtenerColorEstado } from '$lib/pedidos/estadosCliente';
   import ModalValidarPago from '$lib/components/pedidos/ModalValidarPago.svelte';
   import ModalCancelar from '$lib/components/pedidos/ModalCancelar.svelte';
@@ -291,20 +291,6 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
                   {formatCurrency(pedido.total)}
                 </td>
-                <!-- En la tabla de pedidos, agregar botón para PREPARANDO -->
-                <!-- Dentro del <td> de acciones: -->
-
-                {#if pedido.estado === 'preparando'}
-                  <button
-                    on:click={() => abrirModalGuiaEnvio(pedido)}
-                    class="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100"
-                    title="Marcar como enviado"
-                  >
-                    <Truck class="w-5 h-5" />
-                  </button>
-                {/if}
-
-              
                 <td class="px-6 py-4 whitespace-nowrap">
                   <span class="px-3 py-1 text-xs font-semibold rounded-full {colores.bg} {colores.text} border {colores.border}">
                     {CONFIG_ESTADOS[pedido.estado]?.icon} {CONFIG_ESTADOS[pedido.estado]?.label}
@@ -331,6 +317,16 @@
                         title="Validar pago"
                       >
                         <CheckCircle class="w-5 h-5" />
+                      </button>
+                    {/if}
+                    
+                    {#if pedido.estado === 'preparando'}
+                      <button
+                        on:click={() => abrirModalGuiaEnvio(pedido)}
+                        class="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100"
+                        title="Marcar como enviado"
+                      >
+                        <Truck class="w-5 h-5" />
                       </button>
                     {/if}
                     
@@ -384,14 +380,14 @@
 {/if}
 
 {#if modalGuiaEnvio.open}
-    <ModalGuiaEnvio
-        pedido={modalGuiaEnvio.pedido}
-        on:close={() => { 
-        modalGuiaEnvio.open = false; 
-        loadPedidos(); 
-      }}
-    />
-  {/if}
+  <ModalGuiaEnvio
+    pedido={modalGuiaEnvio.pedido}
+    on:close={() => { 
+      modalGuiaEnvio.open = false; 
+      loadPedidos(); 
+    }}
+  />
+{/if}
 
 {#if modalCancelar.open}
   <ModalCancelar
